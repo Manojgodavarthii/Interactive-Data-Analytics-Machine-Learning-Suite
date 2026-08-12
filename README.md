@@ -65,6 +65,7 @@ data-analytics-project/
 │
 └── archive/                       # Legacy UI components
 
+---
 
 🚀 Quickstart & Installation
 1. Clone the Repository
@@ -87,6 +88,8 @@ pip install -r requirements.txt
 Bash
 streamlit run app.py
 Open your browser and navigate to http://localhost:8501.
+
+---
 
 🎯 How to Use
 Upload Dataset: Load your CSV or Excel file through the sidebar interface.
@@ -118,10 +121,15 @@ This project is licensed under the MIT License.
 
 Copy and edit this ready-to-publish post for LinkedIn:
 
+---
+
+
 ```text
 🚀 Excited to share my latest project: An Interactive Data Analytics & Machine Learning Suite built with Python and Streamlit!
 
 I developed this platform to bridge the gap between raw dataset exploration and real-time predictive modeling, enabling non-technical users and analysts alike to derive instant business value from tabular data.
+
+---
 
 💡 Key Highlights:
 1️⃣ Data Governance & Health Auditing: Instant calculation of completeness, duplicate ratios, and data quality metrics.

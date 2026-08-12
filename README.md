@@ -67,29 +67,35 @@ data-analytics-project/
 
 ---
 
+
 🚀 Quickstart & Installation
 1. Clone the Repository
-Bash
-git clone [https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME.git](https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME.git)
-cd YOUR_REPOSITORY_NAME
+
+git clone [https://github.com/YOUR_USERNAME/data-analytics-ml-suite.git](https://github.com/YOUR_USERNAME/data-analytics-ml-suite.git)
+cd data-analytics-ml-suite
+
 2. Set Up a Virtual Environment (Recommended)
-Bash
-# On Windows
+On Windows:
+
 python -m venv venv
 venv\Scripts\activate
 
-# On macOS/Linux
+On macOS / Linux:
+
 python3 -m venv venv
 source venv/bin/activate
+
 3. Install Dependencies
-Bash
+
 pip install -r requirements.txt
+
 4. Launch the Streamlit App
-Bash
+
 streamlit run app.py
-Open your browser and navigate to http://localhost:8501.
+
 
 ---
+
 
 🎯 How to Use
 Upload Dataset: Load your CSV or Excel file through the sidebar interface.
@@ -102,45 +108,30 @@ Explore Trends: Analyze correlations, feature distributions, and chart recommend
 
 Predict & Test: Open Predictive Modeling, choose your target variable, train a model, and fill out the live input form to test predictions on new data.
 
+
+---
 📜 License
-This project is licensed under the MIT License.
+This project is licensed under the MIT License — see the LICENSE file for details.
 
 
----
+MIT License
 
-### 2. GitHub Metadata Details
+Copyright (c) 2026 G. N. Manoj Balaji
 
-* **Repository Name:** `data-analytics-ml-suite`
-* **Short Description:**
-  > An end-to-end interactive Streamlit data platform featuring automated data cleaning, exploratory visual analytics, AI insights, and real-time custom machine learning predictions.
-* **Topics/Tags:** `python` `streamlit` `data-analytics` `machine-learning` `pandas` `scikit-learn` `data-visualization` `eda`
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
----
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-### 3. LinkedIn Showcase Post
-
-Copy and edit this ready-to-publish post for LinkedIn:
-
----
-
-
-```text
-🚀 Excited to share my latest project: An Interactive Data Analytics & Machine Learning Suite built with Python and Streamlit!
-
-I developed this platform to bridge the gap between raw dataset exploration and real-time predictive modeling, enabling non-technical users and analysts alike to derive instant business value from tabular data.
-
----
-
-💡 Key Highlights:
-1️⃣ Data Governance & Health Auditing: Instant calculation of completeness, duplicate ratios, and data quality metrics.
-2️⃣ Preprocessing & Cleaning Pipeline: Reversible missing-value handling, outlier filtering, and dataset audit logging.
-3️⃣ Automated Visual Storytelling: Dynamic correlation analysis, distribution testing, and smart chart recommendations.
-4️⃣ Real-Time Predictive Machine Learning: Train regression or classification models on uploaded data and test custom scenarios live using interactive input controls!
-
-🛠️ Tech Stack: Python | Streamlit | Pandas | NumPy | Scikit-Learn | Plotly
-
-💻 Check out the code on GitHub: [INSERT YOUR GITHUB REPOSITORY LINK HERE]
-
-Feedback and suggestions are always welcome! 👇
-
-#DataScience #MachineLearning #Python #Streamlit #DataAnalytics #PortfolioProject #AI #OpenSource #SoftwareEngineering
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

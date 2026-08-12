@@ -43,30 +43,6 @@ This application allows users to upload custom datasets, evaluate data health, p
 
 ---
 
-## 📂 Project Structure
-
-```text
-data-analytics-project/
-│
-├── app.py                         # Main Streamlit application entry point & routing
-├── requirements.txt               # Dependencies package file
-├── .gitignore                     # Git exclusion rules
-│
-├── modules/
-│   ├── advanced_analytics.py      # ML pipeline training & custom prediction UI
-│   ├── auto_dashboard.py          # Dynamic summary visual dashboard
-│   ├── data_cleaning.py           # Preprocessing & transformation engine
-│   ├── dataset_health.py          # Data Quality Index (DQI) & audit checks
-│   ├── statistical_analysis.py    # Correlation matrices & distribution tests
-│   ├── type_detection.py         # Pattern-based semantic data type detection
-│   ├── version_history.py         # Undo/redo state tracking
-│   ├── visualizations.py          # Custom Plotly chart templates
-│   └── utils.py                   # Caching functions & helper methods
-│
-└── archive/                       # Legacy UI components
-
----
-
 
 🚀 Quickstart & Installation
 1. Clone the Repository
@@ -113,7 +89,6 @@ Predict & Test: Open Predictive Modeling, choose your target variable, train a m
 📜 License
 This project is licensed under the MIT License — see the LICENSE file for details.
 
-
 MIT License
 
 Copyright (c) 2026 G. N. Manoj Balaji
@@ -132,6 +107,32 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+
+## 📂 Project Structure
+
+```text
+data-analytics-project/
+│
+├── app.py                         # Main Streamlit application entry point & routing
+├── requirements.txt               # Dependencies package file
+├── .gitignore                     # Git exclusion rules
+│
+├── modules/
+│   ├── advanced_analytics.py      # ML pipeline training & custom prediction UI
+│   ├── auto_dashboard.py          # Dynamic summary visual dashboard
+│   ├── data_cleaning.py           # Preprocessing & transformation engine
+│   ├── dataset_health.py          # Data Quality Index (DQI) & audit checks
+│   ├── statistical_analysis.py    # Correlation matrices & distribution tests
+│   ├── type_detection.py         # Pattern-based semantic data type detection
+│   ├── version_history.py         # Undo/redo state tracking
+│   ├── visualizations.py          # Custom Plotly chart templates
+│   └── utils.py                   # Caching functions & helper methods
+│
+└── archive/                       # Legacy UI components
+

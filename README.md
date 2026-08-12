@@ -44,6 +44,33 @@ This application allows users to upload custom datasets, evaluate data health, p
 ---
 
 
+## 📂 Project Structure
+
+```text
+data-analytics-project/
+│
+├── app.py                         # Main Streamlit application entry point & routing
+├── requirements.txt               # Dependencies package file
+├── .gitignore                     # Git exclusion rules
+│
+├── modules/
+│   ├── advanced_analytics.py      # ML pipeline training & custom prediction UI
+│   ├── auto_dashboard.py          # Dynamic summary visual dashboard
+│   ├── data_cleaning.py           # Preprocessing & transformation engine
+│   ├── dataset_health.py          # Data Quality Index (DQI) & audit checks
+│   ├── statistical_analysis.py    # Correlation matrices & distribution tests
+│   ├── type_detection.py         # Pattern-based semantic data type detection
+│   ├── version_history.py         # Undo/redo state tracking
+│   ├── visualizations.py          # Custom Plotly chart templates
+│   └── utils.py                   # Caching functions & helper methods
+│
+└── archive/                       # Legacy UI components
+
+
+
+
+
+
 🚀 Quickstart & Installation
 1. Clone the Repository
 
@@ -93,46 +120,11 @@ MIT License
 
 Copyright (c) 2026 G. N. Manoj Balaji
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-
-
-## 📂 Project Structure
-
-```text
-data-analytics-project/
-│
-├── app.py                         # Main Streamlit application entry point & routing
-├── requirements.txt               # Dependencies package file
-├── .gitignore                     # Git exclusion rules
-│
-├── modules/
-│   ├── advanced_analytics.py      # ML pipeline training & custom prediction UI
-│   ├── auto_dashboard.py          # Dynamic summary visual dashboard
-│   ├── data_cleaning.py           # Preprocessing & transformation engine
-│   ├── dataset_health.py          # Data Quality Index (DQI) & audit checks
-│   ├── statistical_analysis.py    # Correlation matrices & distribution tests
-│   ├── type_detection.py         # Pattern-based semantic data type detection
-│   ├── version_history.py         # Undo/redo state tracking
-│   ├── visualizations.py          # Custom Plotly chart templates
-│   └── utils.py                   # Caching functions & helper methods
-│
-└── archive/                       # Legacy UI components
 

@@ -114,9 +114,7 @@ def _train_predictive_model(df, target_col, problem_type="regression"):
     return best_pipe, results
 
 
-import threading
 import uuid as _uuid
-import time as _time
 
 _BG_RESULTS = {}
 _BG_STATUS = {}
@@ -251,28 +249,12 @@ def _fit_default_model(df):
 
 
 def start_background_training(df):
-    """Start ML training on a background thread. Returns a token used to poll status."""
+    """Train the default model immediately (bounded to be fast) and return a
+    token that is always in a terminal state — never stuck in 'training'."""
     token = str(_uuid.uuid4())
-    _BG_STATUS[token] = "training"
-    _BG_RESULTS[token] = None
-
-    def _worker(df_copy=df):
-        result = _fit_default_model(df_copy)
-        _BG_RESULTS[token] = result
-        _BG_STATUS[token] = "ready" if result is not None else "error"
-
-    t = threading.Thread(target=_worker, daemon=True)
-    t.start()
-
-    # Watchdog: never let status stay "training" forever. If training exceeds the
-    # timeout it is treated as an error so the UI unlocks instead of hanging.
-    def _watchdog():
-        _time.sleep(_TRAIN_TIMEOUT_SECONDS)
-        if _BG_STATUS.get(token) == "training":
-            _BG_STATUS[token] = "error"
-            _BG_RESULTS[token] = None
-
-    threading.Thread(target=_watchdog, daemon=True).start()
+    result = _fit_default_model(df)
+    _BG_RESULTS[token] = result
+    _BG_STATUS[token] = "ready" if result is not None else "error"
     return token
 
 

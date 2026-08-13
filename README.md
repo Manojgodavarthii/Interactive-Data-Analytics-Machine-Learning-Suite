@@ -43,7 +43,6 @@ This application allows users to upload custom datasets, evaluate data health, p
 
 ---
 
-
 ## 📂 Project Structure
 
 ```text
@@ -65,56 +64,58 @@ data-analytics-project/
 │   └── utils.py                   # Caching functions & helper methods
 │
 └── archive/                       # Legacy UI components
+```
 
+---
 
+## 🚀 Quickstart & Installation
 
-
-
-
-🚀 Quickstart & Installation
-1. Clone the Repository
-
+### 1. Clone the Repository
+```bash
 git clone [https://github.com/YOUR_USERNAME/data-analytics-ml-suite.git](https://github.com/YOUR_USERNAME/data-analytics-ml-suite.git)
 cd data-analytics-ml-suite
+```
 
-2. Set Up a Virtual Environment (Recommended)
-On Windows:
-
+### 2. Set Up a Virtual Environment (Recommended)
+**On Windows:**
+```bash
 python -m venv venv
 venv\Scripts\activate
+```
 
-On macOS / Linux:
-
+**On macOS / Linux:**
+```bash
 python3 -m venv venv
 source venv/bin/activate
+```
 
-3. Install Dependencies
-
+### 3. Install Dependencies
+```bash
 pip install -r requirements.txt
+```
 
-4. Launch the Streamlit App
-
+### 4. Launch the Streamlit App
+```bash
 streamlit run app.py
+```
 
+---
+
+## 🎯 How to Use
+
+1. **Upload Dataset:** Load your CSV or Excel file through the sidebar interface.
+2. **Review Data Health:** Navigate to *Overview & Health* to view missing value ratios and data quality scores.
+3. **Clean Data:** Use *Data Cleaning* to handle null values, remove duplicates, or adjust column types.
+4. **Explore Trends:** Analyze correlations, feature distributions, and chart recommendations under *Exploratory Analytics*.
+5. **Predict & Test:** Open *Predictive Modeling*, choose your target variable, train a model, and fill out the live input form to test predictions on new data.
 
 ---
 
+## 📜 License
 
-🎯 How to Use
-Upload Dataset: Load your CSV or Excel file through the sidebar interface.
+This project is licensed under the MIT License:
 
-Review Data Health: Navigate to Overview & Health to view missing value ratios and data quality scores.
-
-Clean Data: Use Data Cleaning to handle null values, remove duplicates, or adjust column types.
-
-Explore Trends: Analyze correlations, feature distributions, and chart recommendations under Exploratory Analytics.
-
-Predict & Test: Open Predictive Modeling, choose your target variable, train a model, and fill out the live input form to test predictions on new data.
-
-
----
-📜 License
-This project is licensed under the MIT License — see the LICENSE file for details.
+```text
 MIT License
 
 Copyright (c) 2026 G. N. Manoj Balaji
@@ -136,3 +137,4 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```

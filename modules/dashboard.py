@@ -161,6 +161,11 @@ def _render_upload():
             st.session_state.filename = uploaded_file.name
             st.session_state._last_loaded_filename = uploaded_file.name
             st.session_state.cleaning_history = []
+            st.session_state.pop("ml_train_token", None)
+
+            # Kick off background ML training so the Predictive Modeling page is ready to use
+            from modules.advanced_analytics import start_background_training
+            st.session_state["ml_train_token"] = start_background_training(df_clean)
 
             progress_bar.progress(100)
             st.rerun()
@@ -206,6 +211,7 @@ def _render_dashboard():
             for key in ["df", "original_df", "filename"]:
                 st.session_state[key] = None
             st.session_state.cleaning_history = []
+            st.session_state.pop("ml_train_token", None)
             st.session_state.page = "Dashboard"
             st.rerun()
     with top_col3:
@@ -213,6 +219,9 @@ def _render_dashboard():
             if st.session_state.original_df is not None:
                 st.session_state.df = st.session_state.original_df.copy()
                 st.session_state.cleaning_history = []
+                st.session_state.pop("ml_train_token", None)
+                from modules.advanced_analytics import start_background_training
+                st.session_state["ml_train_token"] = start_background_training(st.session_state.df)
                 st.rerun()
 
     # ── Metric Cards ──────────────────────────────────────────────────────

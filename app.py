@@ -477,6 +477,17 @@ def sidebar_nav():
                 is_active = st.session_state.page == page
                 is_accessible = has_data or page in ALWAYS_ACCESSIBLE
 
+                # Predictive Modeling is locked until the background model finishes training
+                pred_disabled = False
+                pred_badge = "LOCKED"
+                if page == "Predictive Modeling" and has_data:
+                    from modules.advanced_analytics import get_bg_status
+                    pred_status = get_bg_status(st.session_state.get("ml_train_token"))
+                    if pred_status != "ready":
+                        pred_disabled = True
+                        pred_badge = "⏳ TRAINING" if pred_status in ("training", None) else "ERROR"
+                        is_accessible = False
+
                 if is_active:
                     st.markdown(
                         f'<div style="display:flex;align-items:center;gap:0.65rem;padding:0.6rem 0.95rem;border-radius:12px;'
@@ -488,12 +499,13 @@ def sidebar_nav():
                 elif is_accessible:
                     st.button(f"{icon}  {page}", key=f"nav_{page}", on_click=_on_nav_change, args=(page,), use_container_width=True)
                 else:
+                    badge_color = "#f59e0b" if pred_badge == "⏳ TRAINING" else "#64748b"
                     st.markdown(
                         f'<div style="display:flex;align-items:center;gap:0.65rem;padding:0.55rem 0.95rem;border-radius:12px;'
                         f'color:#94a3b8;font-size:0.98rem;margin:0.12rem 0;cursor:not-allowed;background:rgba(241,245,249,0.5);">'
                         f'<span style="font-size:1.1rem;opacity:0.4;">{icon}</span>'
                         f'<span style="font-weight:500;color:#94a3b8;">{page}</span>'
-                        f'<span style="margin-left:auto;font-size:0.62rem;background:#e2e8f0;color:#64748b;padding:0.15rem 0.45rem;border-radius:6px;font-weight:800;letter-spacing:0.5px;">LOCKED</span></div>',
+                        f'<span style="margin-left:auto;font-size:0.62rem;background:#e2e8f0;color:{badge_color};padding:0.15rem 0.45rem;border-radius:6px;font-weight:800;letter-spacing:0.5px;">{pred_badge}</span></div>',
                         unsafe_allow_html=True
                     )
 
@@ -627,6 +639,17 @@ def main():
         return
 
     sidebar_nav()
+
+    # Auto-unlock Predictive Modeling once background training finishes,
+    # from any page (not just the Predictive Modeling page).
+    from modules.advanced_analytics import get_bg_status
+    if st.session_state.get("ml_train_token") and get_bg_status(st.session_state.get("ml_train_token")) in ("training", None):
+        @st.fragment(run_every=2.0)
+        def _bg_poll():
+            if get_bg_status(st.session_state.get("ml_train_token")) in ("ready", "error"):
+                st.rerun(scope="app")
+        _bg_poll()
+
     with st.spinner(f"Loading {st.session_state.page}..."):
         render_fn = _load_page(st.session_state.page)
         if render_fn:

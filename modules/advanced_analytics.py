@@ -114,28 +114,70 @@ def _train_predictive_model(df, target_col, problem_type="regression"):
     return best_pipe, results
 
 
-def auto_train_default_model(df):
-    """Automatically train background machine learning model as soon as dataset is uploaded."""
+import threading
+import uuid as _uuid
+import time as _time
+
+_BG_RESULTS = {}
+_BG_STATUS = {}
+
+# Training must stay fast regardless of dataset size. Cap rows, columns and
+# category cardinality so OneHotEncoder never explodes in memory / time.
+_MAX_TRAIN_ROWS = 1500
+_MAX_TRAIN_FEATURES = 15
+_MAX_CATEGORIES = 20
+_NUM_ESTIMATORS = 20
+_TRAIN_TIMEOUT_SECONDS = 90
+
+
+def _prepare_training_frame(df):
+    """Subsample, cap cardinality and cap feature count so training is fast and bounded."""
     if df is None or df.empty or len(df) < 5:
-        return
+        return df
+    work = df
+    if len(work) > _MAX_TRAIN_ROWS:
+        work = work.sample(n=_MAX_TRAIN_ROWS, random_state=42)
+    work = work.copy()
+
+    if len(work.columns) > _MAX_TRAIN_FEATURES + 1:
+        # Keep the last column (likely the target) plus the first N predictor
+        # columns; drop the rest so the preprocessor stays tiny.
+        keep = list(work.columns[-1:]) + list(work.columns[: _MAX_TRAIN_FEATURES])
+        work = work[keep]
+
+    for c in work.columns:
+        if not pd.api.types.is_numeric_dtype(work[c]):
+            s = work[c].astype(str)
+            vc = s.value_counts()
+            if len(vc) > _MAX_CATEGORIES:
+                top = vc.head(_MAX_CATEGORIES).index
+                work[c] = s.where(s.isin(top), "Other")
+    return work
+
+
+def _fit_default_model(df):
+    """Fit a small default model. Returns a result dict or None."""
+    if df is None or df.empty or len(df) < 5:
+        return None
     try:
         from sklearn.model_selection import train_test_split
         from sklearn.preprocessing import StandardScaler, OneHotEncoder
+        from sklearn.impute import SimpleImputer
         from sklearn.compose import ColumnTransformer
         from sklearn.pipeline import Pipeline
         from sklearn.ensemble import RandomForestRegressor, HistGradientBoostingClassifier
         from sklearn.metrics import mean_squared_error, r2_score, accuracy_score, f1_score
 
+        df = _prepare_training_frame(df)
+        if df is None or len(df) < 5:
+            return None
+
         all_cols = list(df.columns)
         num_cols_all = df.select_dtypes(include=['int64', 'float64', 'int32', 'float32']).columns.tolist()
-        if num_cols_all:
-            target_col = num_cols_all[-1]
-        else:
-            target_col = all_cols[-1]
-
+        target_col = num_cols_all[-1] if num_cols_all else all_cols[-1]
         feature_cols = [c for c in all_cols if c != target_col]
         if not feature_cols:
-            return
+            return None
 
         is_numeric = pd.api.types.is_numeric_dtype(df[target_col])
         unique_vals = df[target_col].nunique()
@@ -157,8 +199,6 @@ def auto_train_default_model(df):
         if problem_type != "Regression":
             y = y.astype(str)
 
-        from sklearn.impute import SimpleImputer
-
         num_transformer = Pipeline(steps=[
             ('imputer', SimpleImputer(strategy='median')),
             ('scaler', StandardScaler())
@@ -178,9 +218,9 @@ def auto_train_default_model(df):
         )
 
         if problem_type == "Regression":
-            model = RandomForestRegressor(n_estimators=10, max_depth=4, random_state=42)
+            model = RandomForestRegressor(n_estimators=_NUM_ESTIMATORS, max_depth=5, random_state=42, n_jobs=-1)
         else:
-            model = HistGradientBoostingClassifier(max_iter=10, random_state=42)
+            model = HistGradientBoostingClassifier(max_iter=_NUM_ESTIMATORS, random_state=42)
 
         pipeline = Pipeline(steps=[('preprocessor', preprocessor), ('model', model)])
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -197,16 +237,66 @@ def auto_train_default_model(df):
             f1 = f1_score(y_test, preds, average='weighted')
             metrics = {"Accuracy": f"{acc:.2%}", "F1": f"{f1:.4f}"}
 
-        st.session_state['ml_pipeline'] = pipeline
-        st.session_state['ml_features'] = feature_cols
-        st.session_state['ml_target'] = target_col
-        st.session_state['ml_problem_type'] = problem_type
-        st.session_state['num_cols'] = num_cols
-        st.session_state['cat_cols'] = cat_cols
-        st.session_state['ml_metrics'] = metrics
-        st.session_state['ml_auto_trained'] = True
+        return {
+            "pipeline": pipeline,
+            "features": feature_cols,
+            "target": target_col,
+            "problem_type": problem_type,
+            "num_cols": num_cols,
+            "cat_cols": cat_cols,
+            "metrics": metrics,
+        }
     except Exception:
-        pass
+        return None
+
+
+def start_background_training(df):
+    """Start ML training on a background thread. Returns a token used to poll status."""
+    token = str(_uuid.uuid4())
+    _BG_STATUS[token] = "training"
+    _BG_RESULTS[token] = None
+
+    def _worker(df_copy=df):
+        result = _fit_default_model(df_copy)
+        _BG_RESULTS[token] = result
+        _BG_STATUS[token] = "ready" if result is not None else "error"
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
+    # Watchdog: never let status stay "training" forever. If training exceeds the
+    # timeout it is treated as an error so the UI unlocks instead of hanging.
+    def _watchdog():
+        _time.sleep(_TRAIN_TIMEOUT_SECONDS)
+        if _BG_STATUS.get(token) == "training":
+            _BG_STATUS[token] = "error"
+            _BG_RESULTS[token] = None
+
+    threading.Thread(target=_watchdog, daemon=True).start()
+    return token
+
+
+def get_bg_status(token):
+    return _BG_STATUS.get(token) if token else None
+
+
+def get_bg_result(token):
+    return _BG_RESULTS.get(token) if token else None
+
+
+def auto_train_default_model(df):
+    """Back-compat wrapper: fit the default model synchronously and store into session state."""
+    result = _fit_default_model(df)
+    if result is None:
+        return
+    st.session_state['ml_pipeline'] = result["pipeline"]
+    st.session_state['ml_features'] = result["features"]
+    st.session_state['ml_target'] = result["target"]
+    st.session_state['ml_problem_type'] = result["problem_type"]
+    st.session_state['num_cols'] = result["num_cols"]
+    st.session_state['cat_cols'] = result["cat_cols"]
+    st.session_state['ml_metrics'] = result["metrics"]
+    st.session_state['ml_auto_trained'] = True
 
 
 def render_prediction_module(df=None):
@@ -219,219 +309,164 @@ def render_prediction_module(df=None):
         st.warning("Please upload a dataset first.")
         return
 
-    st.markdown("<div style='color:#64748b;font-size:0.95rem;margin-bottom:1.2rem;'>Train a machine learning model on your data, then input custom values to get live predictions.</div>", unsafe_allow_html=True)
-
-    # 1. Target Selection
-    all_cols = list(df.columns)
-    target_col = st.selectbox("1. Select Target Column to Predict (y)", all_cols, key="pred_mod_target")
-
-    if not target_col:
+    # 1. Ensure a background model is training for this dataset
+    token = st.session_state.get("ml_train_token")
+    if not token:
+        token = start_background_training(df)
+        st.session_state["ml_train_token"] = token
+        st.rerun()
         return
 
-    # 2. Feature Selection & Mode
-    feat_mode = st.radio("Feature Selection Mode", ["Include All Dataset Features", "Custom Feature Selection"], horizontal=True, key=f"pred_feat_mode_{target_col}")
-    feature_cols = [c for c in all_cols if c != target_col]
-    if feat_mode == "Include All Dataset Features":
-        selected_features = feature_cols
-    else:
-        multiselect_key = f"pred_mod_features_{target_col}_{feat_mode}"
-        selected_features = st.multiselect("2. Select Feature Columns (X)", feature_cols, default=feature_cols, key=multiselect_key)
+    status = get_bg_status(token)
+    result = get_bg_result(token)
 
-    if not selected_features:
-        st.info("Please select at least one feature column.")
+    if status == "error":
+        st.error("The background model could not be trained on this dataset. Try uploading a different dataset.")
+        if st.button("🔄 Retry Background Training", type="primary", key="pred_retry_bg"):
+            st.session_state.pop("ml_train_token", None)
+            st.rerun()
         return
 
-    # Auto-detect problem type
-    is_numeric = pd.api.types.is_numeric_dtype(df[target_col])
-    unique_vals = df[target_col].nunique()
+    if status != "ready" or result is None:
+        # 2. Training still in progress — auto-refresh so prediction unlocks on its own
+        @st.fragment(run_every=2.0)
+        def _training_status():
+            _status = get_bg_status(st.session_state.get("ml_train_token"))
+            if _status == "ready":
+                st.rerun(scope="app")
+                return
+            if _status == "error":
+                st.rerun(scope="app")
+                return
+            st.markdown(
+                '<div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1px solid #c7d2fe;border-radius:16px;'
+                'padding:1.4rem 1.6rem;margin:1rem 0 1.4rem 0;text-align:center;">'
+                '<div style="font-size:1.9rem;margin-bottom:0.4rem;">⏳</div>'
+                '<div style="font-weight:800;font-size:1.15rem;color:#1e1b4b;">Training model in the background…</div>'
+                '<div style="font-size:0.92rem;color:#6366f1;margin-top:0.3rem;font-weight:600;">You can keep using the rest of the app. Prediction unlocks automatically once training finishes.</div>'
+                '</div>',
+                unsafe_allow_html=True
+            )
+            st.progress(0.35, text="Fitting default ML pipeline (auto-refreshing)…")
+            st.info("💡 Tip: You can browse the other analysis sections while the model trains. This page refreshes automatically every 2 seconds.")
 
-    if is_numeric and unique_vals > 10:
-        problem_type = "Regression"
-    else:
-        problem_type = "Classification"
+        _training_status()
+        return
 
-    st.info(f"Auto-detected Analytics Type: **{problem_type}** | Features Used: **{len(selected_features)} columns**")
+    pipeline = result["pipeline"]
+    feature_cols = result["features"]
+    target_col = result["target"]
+    problem_type = result["problem_type"]
+    num_cols = result["num_cols"]
+    cat_cols = result["cat_cols"]
+    metrics = result["metrics"]
 
-    # 3. Interactive Custom User Feature Inputs (ALWAYS DISPLAYED)
-    st.divider()
-    st.markdown('<div style="font-weight:800;font-size:1.25rem;color:#0f172a;margin:1.2rem 0 0.4rem 0;">🎯 Custom Data Input Form for Predictions</div>', unsafe_allow_html=True)
+    # 3. Model status card
+    m_color = "#22c55e" if problem_type == "Regression" else "#6366f1"
+    st.markdown(
+        f'<div style="background:linear-gradient(135deg,#ffffff,#f0f4ff);border:1px solid #c7d2fe;border-radius:16px;'
+        f'padding:1rem 1.3rem;margin:0.2rem 0 1.2rem 0;box-shadow:0 4px 16px rgba(99,102,241,0.10);">'
+        f'<div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">'
+        f'<span style="background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;font-weight:800;font-size:0.78rem;padding:0.35rem 0.8rem;border-radius:20px;">✅ MODEL READY</span>'
+        f'<span style="font-weight:800;color:#0f172a;font-size:1.05rem;">Target: {target_col}</span>'
+        f'<span style="margin-left:auto;font-weight:700;color:{m_color};font-size:1.05rem;">{problem_type}</span>'
+        f'</div>'
+        f'<div style="display:flex;gap:1.4rem;flex-wrap:wrap;margin-top:0.6rem;font-size:0.9rem;color:#475569;">'
+        f'<span>📊 {len(feature_cols)} features</span>'
+        f'<span>{" · ".join(f"{k}: <strong>{v}</strong>" for k, v in metrics.items())}</span>'
+        f'</div></div>',
+        unsafe_allow_html=True
+    )
 
-    partial_mode = st.checkbox("Enable Partial Input Mode (Unfilled features default safely to dataset median/mode)", value=False, key=f"chk_partial_mode_{target_col}")
-    st.markdown("<div style='color:#64748b;font-size:0.92rem;margin-bottom:0.8rem;'>Fill out feature values below to predict the outcome for your custom data:</div>", unsafe_allow_html=True)
+    st.markdown("<div style='color:#64748b;font-size:0.98rem;margin-bottom:1rem;'>Provide your custom data below — either enter values manually or upload a file — to get instant predictions from the pre-trained model.</div>", unsafe_allow_html=True)
 
-    user_inputs = {}
-    cols = st.columns(2)
+    # 4. Prediction input modes: manual entry OR batch file upload
+    tab_manual, tab_batch = st.tabs(["✍️ Enter Data Manually", "📁 Upload File for Batch Predictions"])
 
-    # Classify feature types for inputs
-    num_cols_sel = [c for c in selected_features if pd.api.types.is_numeric_dtype(df[c])]
-    cat_cols_sel = [c for c in selected_features if c not in num_cols_sel]
+    # ─── Manual entry ─────────────────────────────────────────────────────
+    with tab_manual:
+        st.markdown('<div style="font-weight:800;font-size:1.15rem;color:#0f172a;margin:0.4rem 0 0.6rem 0;">Enter values for each feature</div>', unsafe_allow_html=True)
+        user_inputs = {}
+        cols = st.columns(2)
 
-    for idx, feat in enumerate(selected_features):
-        col = cols[idx % 2]
-        with col:
-            is_num = feat in num_cols_sel
-            if is_num:
-                s_feat = df[feat].dropna()
-                default_val = float(s_feat.median()) if len(s_feat) > 0 else 0.0
-                min_val = float(s_feat.min()) if len(s_feat) > 0 else 0.0
-                max_val = float(s_feat.max()) if len(s_feat) > 0 else 100.0
-                if min_val >= max_val:
-                    max_val = min_val + 1.0
-
-            if partial_mode:
-                provide_custom = st.checkbox(f"Provide value for {feat}", value=True, key=f"chk_prov_{target_col}_{feat}")
-                if provide_custom:
-                    if is_num:
-                        user_inputs[feat] = st.number_input(f"Enter {feat}", min_value=min_val, max_value=max_val, value=default_val, key=f"inp_num_{target_col}_{feat}")
-                    else:
-                        opts = list(df[feat].dropna().unique()) if feat in df.columns else ["Unknown"]
-                        if not opts:
-                            opts = ["Unknown"]
-                        user_inputs[feat] = st.selectbox(f"Select {feat}", opts, key=f"inp_cat_{target_col}_{feat}")
-                else:
-                    user_inputs[feat] = default_val if is_num else (list(df[feat].dropna().unique())[0] if feat in df.columns and len(df[feat].dropna().unique()) > 0 else "Unknown")
-            else:
-                if is_num:
-                    user_inputs[feat] = st.number_input(f"Enter {feat}", min_value=min_val, max_value=max_val, value=default_val, key=f"inp_num_{target_col}_{feat}")
+        for idx, feat in enumerate(feature_cols):
+            col = cols[idx % 2]
+            with col:
+                if feat in num_cols:
+                    s_feat = df[feat].dropna()
+                    default_val = float(s_feat.median()) if len(s_feat) > 0 else 0.0
+                    min_val = float(s_feat.min()) if len(s_feat) > 0 else 0.0
+                    max_val = float(s_feat.max()) if len(s_feat) > 0 else 100.0
+                    if min_val >= max_val:
+                        max_val = min_val + 1.0
+                    user_inputs[feat] = st.number_input(f"🔢 {feat}", min_value=min_val, max_value=max_val, value=default_val, key=f"pm_num_{feat}")
                 else:
                     opts = list(df[feat].dropna().unique()) if feat in df.columns else ["Unknown"]
                     if not opts:
                         opts = ["Unknown"]
-                    user_inputs[feat] = st.selectbox(f"Select {feat}", opts, key=f"inp_cat_{target_col}_{feat}")
+                    user_inputs[feat] = st.selectbox(f"🏷️ {feat}", opts, key=f"pm_cat_{feat}")
 
-    # 4. Instant Model Training & Prediction Button
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🚀 Train Model & Predict for Custom Data", type="primary", key=f"btn_train_pred_mod_{target_col}", use_container_width=True):
-        with st.spinner("Training fast predictive model pipeline & predicting custom data..."):
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔮 Run Prediction on My Values", type="primary", key="pm_btn_predict", use_container_width=True):
             try:
-                from sklearn.model_selection import train_test_split
-                from sklearn.preprocessing import StandardScaler, OneHotEncoder
-                from sklearn.impute import SimpleImputer
-                from sklearn.compose import ColumnTransformer
-                from sklearn.pipeline import Pipeline
-                from sklearn.ensemble import RandomForestRegressor, HistGradientBoostingClassifier
-                from sklearn.metrics import mean_squared_error, r2_score, accuracy_score, f1_score
-
-                valid_idx = df[target_col].dropna().index
-                if len(valid_idx) < 1:
-                    st.error(f"Target column '{target_col}' has 0 non-null values to train on.")
-                    return
-
-                X = df.loc[valid_idx, selected_features].copy()
-                y = df.loc[valid_idx, target_col].copy()
-
-                num_cols = X.select_dtypes(include=['int64', 'float64', 'int32', 'float32']).columns.tolist()
-                cat_cols = [c for c in selected_features if c not in num_cols]
-
-                for c in cat_cols:
-                    X[c] = X[c].astype(str)
-
-                if problem_type != "Regression":
-                    y = y.astype(str)
-
-                num_transformer = Pipeline(steps=[
-                    ('imputer', SimpleImputer(strategy='median')),
-                    ('scaler', StandardScaler())
-                ])
-
-                cat_transformer = Pipeline(steps=[
-                    ('imputer', SimpleImputer(strategy='most_frequent')),
-                    ('encoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
-                ])
-
-                preprocessor = ColumnTransformer(
-                    transformers=[
-                        ('num', num_transformer, num_cols),
-                        ('cat', cat_transformer, cat_cols)
-                    ],
-                    remainder='drop'
-                )
-
-                if problem_type == "Regression":
-                    model = RandomForestRegressor(n_estimators=15, max_depth=5, random_state=42)
-                else:
-                    model = HistGradientBoostingClassifier(max_iter=15, random_state=42)
-
-                pipeline = Pipeline(steps=[('preprocessor', preprocessor), ('model', model)])
-                if len(X) < 5:
-                    X_train, X_test, y_train, y_test = X, X, y, y
-                else:
-                    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-                pipeline.fit(X_train, y_train)
-                preds = pipeline.predict(X_test)
-
-                # Save trained pipeline into session state
-                st.session_state['ml_pipeline'] = pipeline
-                st.session_state['ml_features'] = selected_features
-                st.session_state['ml_target'] = target_col
-                st.session_state['ml_problem_type'] = problem_type
-                st.session_state['num_cols'] = num_cols
-                st.session_state['cat_cols'] = cat_cols
-
-                # Show Model Metrics
-                st.success("🎉 Model Trained & Prediction Calculated Successfully!")
-                m1, m2 = st.columns(2)
-                if problem_type == "Regression":
-                    rmse = np.sqrt(mean_squared_error(y_test, preds))
-                    r2 = r2_score(y_test, preds)
-                    m1.metric("Root Mean Squared Error (RMSE)", f"{rmse:.4f}")
-                    m2.metric("R² Accuracy Score", f"{r2:.4f}")
-                else:
-                    acc = accuracy_score(y_test, preds)
-                    f1 = f1_score(y_test, preds, average='weighted')
-                    m1.metric("Classification Accuracy", f"{acc:.2%}")
-                    m2.metric("F1 Score", f"{f1:.4f}")
-
-                # Predict Custom Input
                 input_df = pd.DataFrame([user_inputs])
                 for c in cat_cols:
                     if c in input_df.columns:
                         input_df[c] = input_df[c].astype(str)
-                custom_pred = pipeline.predict(input_df)[0]
+                pred = pipeline.predict(input_df)[0]
 
                 st.markdown("---")
-                st.markdown(f"### 🎯 Real-Time Custom Prediction Outcome")
                 if problem_type == "Regression":
-                    st.metric(label=f"Predicted Value for **{target_col}**", value=f"{custom_pred:,.2f}")
+                    st.markdown(
+                        f'<div style="background:linear-gradient(135deg,#0f172a,#312e81);border-radius:18px;padding:1.6rem 2rem;'
+                        f'text-align:center;color:#ffffff;margin:0.8rem 0;box-shadow:0 12px 35px rgba(49,46,129,0.35);">'
+                        f'<div style="font-size:0.85rem;font-weight:700;letter-spacing:1px;color:rgba(255,255,255,0.6);text-transform:uppercase;">Predicted {target_col}</div>'
+                        f'<div style="font-size:2.6rem;font-weight:900;color:#a5b4fc;margin-top:0.2rem;">{pred:,.2f}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
                 else:
-                    st.success(f"Predicted Class for **{target_col}**: **{custom_pred}**")
-
+                    st.markdown(
+                        f'<div style="background:linear-gradient(135deg,#0f172a,#312e81);border-radius:18px;padding:1.6rem 2rem;'
+                        f'text-align:center;color:#ffffff;margin:0.8rem 0;box-shadow:0 12px 35px rgba(49,46,129,0.35);">'
+                        f'<div style="font-size:0.85rem;font-weight:700;letter-spacing:1px;color:rgba(255,255,255,0.6);text-transform:uppercase;">Predicted Class for {target_col}</div>'
+                        f'<div style="font-size:2.4rem;font-weight:900;color:#a5b4fc;margin-top:0.2rem;">{pred}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
             except Exception as e:
-                st.error(f"Training / Prediction failed: {e}")
+                st.error(f"Prediction failed: {e}")
 
-        # 5. Batch File Upload Predictions
-        st.divider()
-        st.markdown('<div style="font-weight:800;font-size:1.3rem;color:#0f172a;margin:1.8rem 0 0.5rem 0;">📁 Batch File Predictions (Upload Test Dataset File)</div>', unsafe_allow_html=True)
-        st.markdown('<div style="color:#64748b;font-size:0.95rem;margin-bottom:0.8rem;">Upload a CSV or Excel test dataset to run batch predictions across all rows.</div>', unsafe_allow_html=True)
-
+    # ─── Batch file upload ────────────────────────────────────────────────
+    with tab_batch:
+        st.markdown('<div style="font-weight:800;font-size:1.15rem;color:#0f172a;margin:0.4rem 0 0.6rem 0;">Upload a test dataset (same feature columns)</div>', unsafe_allow_html=True)
         batch_file = st.file_uploader("📂 Drop CSV / Excel test file here for batch predictions", type=["csv", "xlsx", "xls"], key="uplo_batch_file_pred")
         if batch_file:
             try:
                 from modules.utils import read_dataset
                 test_df = read_dataset(batch_file)
                 if test_df is not None:
-                    # Prepare features
-                    needed_feats = st.session_state.get('ml_features', [])
+                    needed_feats = feature_cols
                     missing_in_test = [f for f in needed_feats if f not in test_df.columns]
                     if missing_in_test:
-                        st.warning(f"Note: Uploaded file is missing {len(missing_in_test)} feature column(s): {missing_in_test}. Filling defaults...")
+                        st.warning(f"Note: Uploaded file is missing {len(missing_in_test)} feature column(s): {missing_in_test}. Filling with dataset defaults...")
                         for mf in missing_in_test:
-                            if mf in st.session_state.get('num_cols', []):
+                            if mf in num_cols:
                                 test_df[mf] = float(df[mf].median()) if mf in df.columns else 0.0
                             else:
                                 test_df[mf] = str(list(df[mf].dropna().unique())[0]) if mf in df.columns else "Unknown"
 
                     X_batch = test_df[needed_feats].copy()
-                    for c in st.session_state.get('cat_cols', []):
+                    for c in cat_cols:
                         if c in X_batch.columns:
                             X_batch[c] = X_batch[c].astype(str)
 
-                    batch_preds = pipeline.predict(X_batch)
+                    with st.spinner("Running batch predictions…"):
+                        batch_preds = pipeline.predict(X_batch)
                     res_df = test_df.copy()
                     res_df[f"Predicted_{target_col}"] = batch_preds
 
-                    st.success(f"🎉 Successfully generated batch predictions for {len(test_df):,} test rows!")
+                    st.success(f"🎉 Successfully generated predictions for {len(test_df):,} test rows!")
                     st.dataframe(res_df.head(25), use_container_width=True)
 
                     csv_batch = res_df.to_csv(index=False).encode("utf-8")
